@@ -126,20 +126,18 @@ func getBootstrapNodes(config *NodeConfig) (v5nodes []*discv5.Node, nodes []*dis
 }
 
 func getGenesis(config *NodeConfig) (genesis *core.Genesis) {
-	genesis = new(core.Genesis)
 	switch config.EthereumNetworkID {
 	case 2:
-		genesis.Config = params.TestnetChainConfig
+		genesis = core.DefaultTestnetGenesisBlock()
 		break
 	case 4:
-		genesis.Config = params.RinkebyChainConfig
+		genesis = core.DefaultRinkebyGenesisBlock()
 		break
 	case 1:
 	default:
-		genesis.Config = params.MainnetChainConfig
+		genesis = nil
 		break
 	}
-
 	return
 }
 
@@ -166,7 +164,8 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			DiscoveryV5Addr:  ":30304",
 			BootstrapNodes:   bootstrapNodes,
 			BootstrapNodesV5: v5BootstrapNodes,
-			MaxPeers:         25,
+			MaxPeers:         config.MaxPeers,
+			MaxPendingPeers:  10,
 			NAT:              nat.Any(),
 		},
 	}
@@ -181,7 +180,6 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		ethConf := eth.DefaultConfig
 		ethConf.Genesis = genesis
 		ethConf.SyncMode = downloader.FastSync
-		ethConf.MaxPeers = 25
 		ethConf.NetworkId = uint64(config.EthereumNetworkID)
 		ethConf.DatabaseCache = config.EthereumDatabaseCache
 		ethConf.DatabaseHandles = 1024
