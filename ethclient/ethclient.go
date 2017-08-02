@@ -212,7 +212,18 @@ func toBlockNumArg(number *big.Int) string {
 	if number == nil {
 		return "latest"
 	}
-	return hexutil.EncodeBig(number)
+
+	blockNumber := number.Int64()
+	switch blockNumber {
+	case rpc.PendingBlockNumber.Int64():
+		return "pending"
+	case rpc.LatestBlockNumber.Int64():
+		return "latest"
+	case rpc.EarliestBlockNumber.Int64():
+		return "earlist"
+	default:
+		return hexutil.EncodeBig(number)
+	}
 }
 
 type rpcProgress struct {
@@ -302,6 +313,36 @@ func (ec *Client) NonceAt(ctx context.Context, account common.Address, blockNumb
 }
 
 // Filters
+
+func (ec *Client) GetNewFilter(ctx context.Context, q ethereum.FilterQuery) (*big.Int, error) {
+	var hex hexutil.Big
+	err := ec.c.CallContext(ctx, &hex, "eth_newFilter", toFilterArg(q))
+	return (*big.Int)(&hex), err
+}
+
+func (ec *Client) GetNewPendingTransactionFilter(ctx context.Context) (*big.Int, error) {
+	var hex hexutil.Big
+	err := ec.c.CallContext(ctx, &hex, "eth_newPendingTransactionFilter")
+	return (*big.Int)(&hex), err
+}
+
+func (ec *Client) UninstallFilter(ctx context.Context, filterID *big.Int) (bool, error) {
+	var result bool
+	err := ec.c.CallContext(ctx, &result, "eth_uninstallFilter", hexutil.EncodeBig(filterID))
+	return result, err
+}
+
+func (ec *Client) GetFilterChanges(ctx context.Context, filterID *big.Int) ([]types.Log, error) {
+	var result []types.Log
+	err := ec.c.CallContext(ctx, &result, "eth_getFilterChanges", hexutil.EncodeBig(filterID))
+	return result, err
+}
+
+func (ec *Client) GetFilterLogs(ctx context.Context, filterID *big.Int) ([]types.Log, error) {
+	var result []types.Log
+	err := ec.c.CallContext(ctx, &result, "eth_getFilterLogs", hexutil.EncodeBig(filterID))
+	return result, err
+}
 
 // FilterLogs executes a filter query.
 func (ec *Client) FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]types.Log, error) {

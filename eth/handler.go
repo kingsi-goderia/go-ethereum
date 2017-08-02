@@ -125,6 +125,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		if mode == downloader.FastSync && version < eth63 {
 			continue
 		}
+		log.Info("handler.go: make subprotocol")
 		// Compatible; initialise the sub-protocol
 		version := version // Closure for the run
 		manager.SubProtocols = append(manager.SubProtocols, p2p.Protocol{
@@ -244,14 +245,17 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 // this function terminates, the peer is disconnected.
 func (pm *ProtocolManager) handle(p *peer) error {
 	if pm.peers.Len() >= pm.maxPeers {
+		log.Info("handler.go: too many peers")
 		return p2p.DiscTooManyPeers
 	}
+	log.Info("handler.go: Ethereum peer connected", "name", p.Name())
 	p.Log().Debug("Ethereum peer connected", "name", p.Name())
 
 	// Execute the Ethereum handshake
 	td, head, genesis := pm.blockchain.Status()
 	if err := p.Handshake(pm.networkId, td, head, genesis); err != nil {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
+		log.Info("handler.go: Ethereum handshake failed", "err", err)
 		return err
 	}
 	if rw, ok := p.rw.(*meteredMsgReadWriter); ok {
@@ -260,12 +264,14 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	// Register the peer locally
 	if err := pm.peers.Register(p); err != nil {
 		p.Log().Error("Ethereum peer registration failed", "err", err)
+		log.Info("handler.go: Ethereum peer registration failed", "err", err)
 		return err
 	}
 	defer pm.removePeer(p.id)
 
 	// Register the peer in the downloader. If the downloader considers it banned, we disconnect
 	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
+		log.Info("handler.go: Ethereum peer registration in downloader failed", "err", err)
 		return err
 	}
 	// Propagate existing transactions. new transactions appearing

@@ -22,7 +22,11 @@ package geth
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 	"path/filepath"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/discover"
 
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth"
@@ -108,19 +112,29 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		config.BootstrapNodes = defaultNodeConfig.BootstrapNodes
 	}
 	// Create the empty networking stack
+	bootstrapNodes := make([]*discover.Node, 0, len(config.BootstrapNodes.nodes))
+	for _, n := range config.BootstrapNodes.nodes {
+		node, err := discover.ParseNode(n.String())
+		if err != nil {
+			log.Error("Bootstrap URL invalid", "enode", n.String(), "err", err)
+			continue
+		}
+		bootstrapNodes = append(bootstrapNodes, node)
+	}
 	nodeConf := &node.Config{
 		Name:        clientIdentifier,
 		Version:     params.Version,
 		DataDir:     datadir,
 		KeyStoreDir: filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
 		P2P: p2p.Config{
-			NoDiscovery:      true,
+			NoDiscovery:      false,
 			DiscoveryV5:      true,
-			DiscoveryV5Addr:  ":0",
+			ListenAddr:       ":30303",
+			DiscoveryV5Addr:  ":30304",
+			BootstrapNodes:   bootstrapNodes,
 			BootstrapNodesV5: config.BootstrapNodes.nodes,
-			ListenAddr:       ":0",
+			MaxPeers:         25,
 			NAT:              nat.Any(),
-			MaxPeers:         config.MaxPeers,
 		},
 	}
 	rawStack, err := node.New(nodeConf)
@@ -147,21 +161,36 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	if config.EthereumEnabled {
 		ethConf := eth.DefaultConfig
 		ethConf.Genesis = genesis
-		ethConf.SyncMode = downloader.LightSync
+		ethConf.SyncMode = downloader.FastSync
+		ethConf.MaxPeers = 25
 		ethConf.NetworkId = uint64(config.EthereumNetworkID)
 		ethConf.DatabaseCache = config.EthereumDatabaseCache
+		ethConf.DatabaseHandles = 1024
+		ethConf.DatabaseCache = 128
+		ethConf.EthashCacheDir = path.Join(datadir, ".ethash")
+		ethConf.EthashDatasetDir = path.Join(datadir, ".ethash")
 		if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-			return les.New(ctx, &ethConf)
+			fullNode, err := eth.New(ctx, &ethConf)
+			if fullNode != nil && ethConf.LightServ > 0 {
+				ls, _ := les.NewLesServer(fullNode, &ethConf)
+				fullNode.AddLesServer(ls)
+			}
+			return fullNode, err
 		}); err != nil {
 			return nil, fmt.Errorf("ethereum init: %v", err)
 		}
+
 		// If netstats reporting is requested, do it
 		if config.EthereumNetStats != "" {
 			if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
+
+				var ethServ *eth.Ethereum
+				ctx.Service(&ethServ)
+
 				var lesServ *les.LightEthereum
 				ctx.Service(&lesServ)
 
-				return ethstats.New(config.EthereumNetStats, nil, lesServ)
+				return ethstats.New(config.EthereumNetStats, ethServ, lesServ)
 			}); err != nil {
 				return nil, fmt.Errorf("netstats init: %v", err)
 			}
@@ -175,6 +204,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			return nil, fmt.Errorf("whisper init: %v", err)
 		}
 	}
+
 	return &Node{rawStack}, nil
 }
 

@@ -55,6 +55,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/discv5"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 	"golang.org/x/net/websocket"
 )
 
@@ -314,8 +315,8 @@ func (f *faucet) apiHandler(conn *websocket.Conn) {
 		f.lock.Unlock()
 	}()
 	// Send a few initial stats to the client
-	balance, _ := f.client.BalanceAt(context.Background(), f.account.Address, nil)
-	nonce, _ := f.client.NonceAt(context.Background(), f.account.Address, nil)
+	balance, _ := f.client.BalanceAt(context.Background(), f.account.Address, big.NewInt(rpc.LatestBlockNumber.Int64()))
+	nonce, _ := f.client.NonceAt(context.Background(), f.account.Address, big.NewInt(rpc.LatestBlockNumber.Int64()))
 
 	websocket.JSON.Send(conn, map[string]interface{}{
 		"funds":    balance.Div(balance, ether),

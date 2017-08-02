@@ -25,6 +25,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rlp"
 	"gopkg.in/fatih/set.v0"
@@ -389,6 +390,7 @@ func (ps *peerSet) PeersWithoutTx(hash common.Hash) []*peer {
 
 // BestPeer retrieves the known peer with the currently highest total difficulty.
 func (ps *peerSet) BestPeer() *peer {
+	log.Info("peer.go: BestPeer", "len(ps.peers)", len(ps.peers))
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 

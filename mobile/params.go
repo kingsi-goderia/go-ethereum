@@ -59,3 +59,11 @@ func FoundationBootnodes() *Enodes {
 	}
 	return nodes
 }
+
+func RinkebyBootnodes() *Enodes {
+	nodes := &Enodes{nodes: make([]*discv5.Node, len(params.RinkebyV5Bootnodes))}
+	for i, url := range params.RinkebyV5Bootnodes {
+		nodes.nodes[i] = discv5.MustParseNode(url)
+	}
+	return nodes
+}

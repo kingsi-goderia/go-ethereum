@@ -45,10 +45,6 @@ func (ec *EthereumClient) GetBlockByHash(ctx *Context, hash *Hash) (block *Block
 // GetBlockByNumber returns a block from the current canonical chain. If number is <0, the
 // latest known block is returned.
 func (ec *EthereumClient) GetBlockByNumber(ctx *Context, number int64) (block *Block, _ error) {
-	if number < 0 {
-		rawBlock, err := ec.client.BlockByNumber(ctx.context, nil)
-		return &Block{rawBlock}, err
-	}
 	rawBlock, err := ec.client.BlockByNumber(ctx.context, big.NewInt(number))
 	return &Block{rawBlock}, err
 }
@@ -62,10 +58,6 @@ func (ec *EthereumClient) GetHeaderByHash(ctx *Context, hash *Hash) (header *Hea
 // GetHeaderByNumber returns a block header from the current canonical chain. If number is <0,
 // the latest known header is returned.
 func (ec *EthereumClient) GetHeaderByNumber(ctx *Context, number int64) (header *Header, _ error) {
-	if number < 0 {
-		rawHeader, err := ec.client.HeaderByNumber(ctx.context, nil)
-		return &Header{rawHeader}, err
-	}
 	rawHeader, err := ec.client.HeaderByNumber(ctx.context, big.NewInt(number))
 	return &Header{rawHeader}, err
 }
@@ -144,10 +136,6 @@ func (ec *EthereumClient) SubscribeNewHead(ctx *Context, handler NewHeadHandler,
 // GetBalanceAt returns the wei balance of the given account.
 // The block number can be <0, in which case the balance is taken from the latest known block.
 func (ec *EthereumClient) GetBalanceAt(ctx *Context, account *Address, number int64) (balance *BigInt, _ error) {
-	if number < 0 {
-		rawBalance, err := ec.client.BalanceAt(ctx.context, account.address, nil)
-		return &BigInt{rawBalance}, err
-	}
 	rawBalance, err := ec.client.BalanceAt(ctx.context, account.address, big.NewInt(number))
 	return &BigInt{rawBalance}, err
 }
@@ -155,33 +143,59 @@ func (ec *EthereumClient) GetBalanceAt(ctx *Context, account *Address, number in
 // GetStorageAt returns the value of key in the contract storage of the given account.
 // The block number can be <0, in which case the value is taken from the latest known block.
 func (ec *EthereumClient) GetStorageAt(ctx *Context, account *Address, key *Hash, number int64) (storage []byte, _ error) {
-	if number < 0 {
-		return ec.client.StorageAt(ctx.context, account.address, key.hash, nil)
-	}
 	return ec.client.StorageAt(ctx.context, account.address, key.hash, big.NewInt(number))
 }
 
 // GetCodeAt returns the contract code of the given account.
 // The block number can be <0, in which case the code is taken from the latest known block.
 func (ec *EthereumClient) GetCodeAt(ctx *Context, account *Address, number int64) (code []byte, _ error) {
-	if number < 0 {
-		return ec.client.CodeAt(ctx.context, account.address, nil)
-	}
 	return ec.client.CodeAt(ctx.context, account.address, big.NewInt(number))
 }
 
 // GetNonceAt returns the account nonce of the given account.
 // The block number can be <0, in which case the nonce is taken from the latest known block.
 func (ec *EthereumClient) GetNonceAt(ctx *Context, account *Address, number int64) (nonce int64, _ error) {
-	if number < 0 {
-		rawNonce, err := ec.client.NonceAt(ctx.context, account.address, nil)
-		return int64(rawNonce), err
-	}
 	rawNonce, err := ec.client.NonceAt(ctx.context, account.address, big.NewInt(number))
 	return int64(rawNonce), err
 }
 
 // Filters
+
+func (ec *EthereumClient) GetNewFilter(ctx *Context, query *FilterQuery) (filterID *BigInt, _ error) {
+	rawFilterID, err := ec.client.GetNewFilter(ctx.context, query.query)
+	return &BigInt{rawFilterID}, err
+}
+
+func (ec *EthereumClient) GetNewPendingTransactionFilter(ctx *Context) (filterID *BigInt, _ error) {
+	rawFilterID, err := ec.client.GetNewPendingTransactionFilter(ctx.context)
+	return &BigInt{rawFilterID}, err
+}
+
+func (ec *EthereumClient) UninstallFilter(ctx *Context, filterID *BigInt) (result bool, _ error) {
+	res, err := ec.client.UninstallFilter(ctx.context, filterID.bigint)
+	return res, err
+}
+
+func postprocessLogs(rawLogs []types.Log, err error) (logs *Logs, _ error) {
+	if err != nil {
+		return nil, err
+	}
+	res := make([]*types.Log, len(rawLogs))
+	for i, log := range rawLogs {
+		res[i] = &log
+	}
+	return &Logs{res}, nil
+}
+
+func (ec *EthereumClient) GetFilterChanges(ctx *Context, filterID *BigInt) (logs *Logs, _ error) {
+	rawLogs, err := ec.client.GetFilterChanges(ctx.context, filterID.bigint)
+	return postprocessLogs(rawLogs, err)
+}
+
+func (ec *EthereumClient) GetFilterLogs(ctx *Context, filterID *BigInt) (logs *Logs, _ error) {
+	rawLogs, err := ec.client.GetFilterLogs(ctx.context, filterID.bigint)
+	return postprocessLogs(rawLogs, err)
+}
 
 // FilterLogs executes a filter query.
 func (ec *EthereumClient) FilterLogs(ctx *Context, query *FilterQuery) (logs *Logs, _ error) {
@@ -268,9 +282,6 @@ func (ec *EthereumClient) GetPendingTransactionCount(ctx *Context) (count int, _
 // case the code is taken from the latest known block. Note that state from very old
 // blocks might not be available.
 func (ec *EthereumClient) CallContract(ctx *Context, msg *CallMsg, number int64) (output []byte, _ error) {
-	if number < 0 {
-		return ec.client.CallContract(ctx.context, msg.msg, nil)
-	}
 	return ec.client.CallContract(ctx.context, msg.msg, big.NewInt(number))
 }
 

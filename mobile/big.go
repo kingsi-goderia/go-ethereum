@@ -35,6 +35,13 @@ func NewBigInt(x int64) *BigInt {
 	return &BigInt{big.NewInt(x)}
 }
 
+// NewBigIntFromBytes allocates using bytes and returns a new BigInt set to buf.
+func NewBigIntFromBytes(buf []byte) *BigInt {
+	bi := &BigInt{new(big.Int)}
+	bi.SetBytes(buf)
+	return bi
+}
+
 // GetBytes returns the absolute value of x as a big-endian byte slice.
 func (bi *BigInt) GetBytes() []byte {
 	return bi.bigint.Bytes()

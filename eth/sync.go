@@ -137,6 +137,8 @@ func (pm *ProtocolManager) syncer() {
 	defer pm.fetcher.Stop()
 	defer pm.downloader.Terminate()
 
+	log.Info("syncer started")
+
 	// Wait for different events to fire synchronisation operations
 	forceSync := time.Tick(forceSyncCycle)
 	for {
@@ -146,13 +148,16 @@ func (pm *ProtocolManager) syncer() {
 			if pm.peers.Len() < minDesiredPeerCount {
 				break
 			}
+			log.Info("normal sync", "minDesiredPeerCount", minDesiredPeerCount)
 			go pm.synchronise(pm.peers.BestPeer())
 
 		case <-forceSync:
 			// Force a sync even if not enough peers are present
+			log.Info("force sync")
 			go pm.synchronise(pm.peers.BestPeer())
 
 		case <-pm.noMorePeers:
+			log.Info("noMorePeers")
 			return
 		}
 	}
@@ -162,6 +167,7 @@ func (pm *ProtocolManager) syncer() {
 func (pm *ProtocolManager) synchronise(peer *peer) {
 	// Short circuit if no peers are available
 	if peer == nil {
+		log.Info("sync.go: peer is nil")
 		return
 	}
 	// Make sure the peer's TD is higher than our own
@@ -170,6 +176,7 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 
 	pHead, pTd := peer.Head()
 	if pTd.Cmp(td) <= 0 {
+		log.Info("sync.go: td diff")
 		return
 	}
 	// Otherwise try to sync with the downloader
@@ -187,6 +194,7 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 		mode = downloader.FastSync
 	}
 	if err := pm.downloader.Synchronise(peer.id, pHead, pTd, mode); err != nil {
+		log.Info("sync.go: snyc failed")
 		return
 	}
 	atomic.StoreUint32(&pm.acceptTxs, 1) // Mark initial sync done
