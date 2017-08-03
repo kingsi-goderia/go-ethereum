@@ -20,13 +20,12 @@
 package geth
 
 import (
-	"encoding/json"
 	"fmt"
 	"path"
 	"path/filepath"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/discv5"
 
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth"
@@ -46,9 +45,6 @@ import (
 // entire API provided by go-ethereum to reduce the maintenance surface and dev
 // complexity.
 type NodeConfig struct {
-	// Bootstrap nodes used to establish connectivity with the rest of the network.
-	BootstrapNodes *Enodes
-
 	// MaxPeers is the maximum number of peers that can be connected. If this is
 	// set to zero, then only the configured static and trusted peers can connect.
 	MaxPeers int
@@ -59,10 +55,6 @@ type NodeConfig struct {
 	// EthereumNetworkID is the network identifier used by the Ethereum protocol to
 	// decide if remote peers should be accepted or not.
 	EthereumNetworkID int64 // uint64 in truth, but Java can't handle that...
-
-	// EthereumGenesis is the genesis JSON to use to seed the blockchain with. An
-	// empty genesis state is equivalent to using the mainnet's state.
-	EthereumGenesis string
 
 	// EthereumDatabaseCache is the system memory in MB to allocate for database caching.
 	// A minimum of 16MB is always reserved.
@@ -81,11 +73,10 @@ type NodeConfig struct {
 // defaultNodeConfig contains the default node configuration values to use if all
 // or some fields are missing from the user's specified list.
 var defaultNodeConfig = &NodeConfig{
-	BootstrapNodes:        FoundationBootnodes(),
 	MaxPeers:              25,
 	EthereumEnabled:       true,
 	EthereumNetworkID:     1,
-	EthereumDatabaseCache: 16,
+	EthereumDatabaseCache: 128,
 }
 
 // NewNodeConfig creates a new node option set, initialized to the default values.
@@ -99,6 +90,59 @@ type Node struct {
 	node *node.Node
 }
 
+func getBootstrapNodes(config *NodeConfig) (v5nodes []*discv5.Node, nodes []*discover.Node) {
+	switch config.EthereumNetworkID {
+	case 2:
+		v5nodes = []*discv5.Node{}
+		nodes = make([]*discover.Node, len(params.MainnetBootnodes))
+		for i, url := range params.DiscoveryV5Bootnodes {
+			nodes[i] = discover.MustParseNode(url)
+		}
+		break
+	case 4:
+		v5nodes = make([]*discv5.Node, len(params.RinkebyV5Bootnodes))
+		for i, url := range params.RinkebyV5Bootnodes {
+			v5nodes[i] = discv5.MustParseNode(url)
+		}
+		nodes = make([]*discover.Node, len(params.RinkebyBootnodes))
+		for i, url := range params.RinkebyBootnodes {
+			nodes[i] = discover.MustParseNode(url)
+		}
+		break
+	case 1:
+	default:
+		v5nodes = make([]*discv5.Node, len(params.DiscoveryV5Bootnodes))
+		for i, url := range params.DiscoveryV5Bootnodes {
+			v5nodes[i] = discv5.MustParseNode(url)
+		}
+		nodes = make([]*discover.Node, len(params.MainnetBootnodes))
+		for i, url := range params.MainnetBootnodes {
+			nodes[i] = discover.MustParseNode(url)
+		}
+		break
+	}
+
+	return
+}
+
+func getGenesis(config *NodeConfig) (genesis *core.Genesis) {
+	genesis = new(core.Genesis)
+	switch config.EthereumNetworkID {
+	case 2:
+		genesis.Config = params.TestnetChainConfig
+		break
+	case 4:
+		genesis.Config = params.RinkebyChainConfig
+		break
+	case 1:
+	default:
+		genesis.Config = params.MainnetChainConfig
+		break
+	}
+
+	return
+}
+
 // NewNode creates and configures a new Geth node.
 func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	// If no or partial configurations were specified, use defaults
@@ -108,19 +152,8 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	if config.MaxPeers == 0 {
 		config.MaxPeers = defaultNodeConfig.MaxPeers
 	}
-	if config.BootstrapNodes == nil || config.BootstrapNodes.Size() == 0 {
-		config.BootstrapNodes = defaultNodeConfig.BootstrapNodes
-	}
 	// Create the empty networking stack
-	bootstrapNodes := make([]*discover.Node, 0, len(config.BootstrapNodes.nodes))
-	for _, n := range config.BootstrapNodes.nodes {
-		node, err := discover.ParseNode(n.String())
-		if err != nil {
-			log.Error("Bootstrap URL invalid", "enode", n.String(), "err", err)
-			continue
-		}
-		bootstrapNodes = append(bootstrapNodes, node)
-	}
+	v5BootstrapNodes, bootstrapNodes := getBootstrapNodes(config)
 	nodeConf := &node.Config{
 		Name:        clientIdentifier,
 		Version:     params.Version,
@@ -132,7 +165,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			ListenAddr:       ":30303",
 			DiscoveryV5Addr:  ":30304",
 			BootstrapNodes:   bootstrapNodes,
-			BootstrapNodesV5: config.BootstrapNodes.nodes,
+			BootstrapNodesV5: v5BootstrapNodes,
 			MaxPeers:         25,
 			NAT:              nat.Any(),
 		},
@@ -142,22 +175,8 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		return nil, err
 	}
 
-	var genesis *core.Genesis
-	if config.EthereumGenesis != "" {
-		// Parse the user supplied genesis spec if not mainnet
-		genesis = new(core.Genesis)
-		if err := json.Unmarshal([]byte(config.EthereumGenesis), genesis); err != nil {
-			return nil, fmt.Errorf("invalid genesis spec: %v", err)
-		}
-		// If we have the testnet, hard code the chain configs too
-		if config.EthereumGenesis == TestnetGenesis() {
-			genesis.Config = params.TestnetChainConfig
-			if config.EthereumNetworkID == 1 {
-				config.EthereumNetworkID = 3
-			}
-		}
-	}
 	// Register the Ethereum protocol if requested
+	genesis := getGenesis(config)
 	if config.EthereumEnabled {
 		ethConf := eth.DefaultConfig
 		ethConf.Genesis = genesis
@@ -166,7 +185,6 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		ethConf.NetworkId = uint64(config.EthereumNetworkID)
 		ethConf.DatabaseCache = config.EthereumDatabaseCache
 		ethConf.DatabaseHandles = 1024
-		ethConf.DatabaseCache = 128
 		ethConf.EthashCacheDir = path.Join(datadir, ".ethash")
 		ethConf.EthashDatasetDir = path.Join(datadir, ".ethash")
 		if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
