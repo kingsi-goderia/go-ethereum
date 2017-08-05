@@ -165,7 +165,6 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			BootstrapNodes:   bootstrapNodes,
 			BootstrapNodesV5: v5BootstrapNodes,
 			MaxPeers:         config.MaxPeers,
-			MaxPendingPeers:  10,
 			NAT:              nat.Any(),
 		},
 	}
@@ -182,6 +181,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		ethConf.SyncMode = downloader.FastSync
 		ethConf.NetworkId = uint64(config.EthereumNetworkID)
 		ethConf.DatabaseCache = config.EthereumDatabaseCache
+		ethConf.MaxPeers = config.MaxPeers
 		ethConf.DatabaseHandles = 1024
 		ethConf.EthashCacheDir = path.Join(datadir, ".ethash")
 		ethConf.EthashDatasetDir = path.Join(datadir, ".ethash")

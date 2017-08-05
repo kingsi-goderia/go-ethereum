@@ -96,6 +96,7 @@ type ProtocolManager struct {
 // with the ethereum network.
 func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, networkId uint64, maxPeers int, mux *event.TypeMux, txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
+	log.Info("handler.go: NewProtocolManager", "maxPeers", maxPeers)
 	manager := &ProtocolManager{
 		networkId:   networkId,
 		eventMux:    mux,
@@ -245,7 +246,7 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 // this function terminates, the peer is disconnected.
 func (pm *ProtocolManager) handle(p *peer) error {
 	if pm.peers.Len() >= pm.maxPeers {
-		log.Info("handler.go: too many peers")
+		log.Info("handler.go: too many peers", "pm.peers.Len()", pm.peers.Len(), "pm.maxPeers", pm.maxPeers)
 		return p2p.DiscTooManyPeers
 	}
 	log.Info("handler.go: Ethereum peer connected", "name", p.Name())
