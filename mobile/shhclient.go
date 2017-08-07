@@ -32,9 +32,8 @@ func NewShhClient(rawurl string) (clieint *ShhClient, _ error) {
 	return &ShhClient{rawClient}, err
 }
 
-func (sc *ShhClient) Version(ctx *Context) (int64, error) {
-	ver, err := sc.client.Version(ctx.context)
-	return int64(ver), err
+func (sc *ShhClient) Version(ctx *Context) (string, error) {
+	return sc.client.Version(ctx.context)
 }
 
 func (sc *ShhClient) Info(ctx *Context) (*Info, error) {
