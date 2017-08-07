@@ -24,6 +24,8 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/ethereum/go-ethereum/whisper/shhclient"
+
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/discv5"
 
@@ -242,6 +244,14 @@ func (n *Node) GetEthereumClient() (client *EthereumClient, _ error) {
 		return nil, err
 	}
 	return &EthereumClient{ethclient.NewClient(rpc)}, nil
+}
+
+func (n *Node) GetShhClient() (client *ShhClient, _ error) {
+	rpc, err := n.node.Attach()
+	if err != nil {
+		return nil, err
+	}
+	return &ShhClient{shhclient.NewClient(rpc)}, nil
 }
 
 // GetNodeInfo gathers and returns a collection of metadata known about the host.
