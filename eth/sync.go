@@ -140,7 +140,9 @@ func (pm *ProtocolManager) syncer() {
 	log.Info("syncer started")
 
 	// Wait for different events to fire synchronisation operations
-	forceSync := time.Tick(forceSyncCycle)
+	forceSync := time.NewTicker(forceSyncCycle)
+	defer forceSync.Stop()
+
 	for {
 		select {
 		case <-pm.newPeerCh:
@@ -151,7 +153,7 @@ func (pm *ProtocolManager) syncer() {
 			log.Info("normal sync", "minDesiredPeerCount", minDesiredPeerCount)
 			go pm.synchronise(pm.peers.BestPeer())
 
-		case <-forceSync:
+		case <-forceSync.C:
 			// Force a sync even if not enough peers are present
 			log.Info("force sync")
 			go pm.synchronise(pm.peers.BestPeer())
