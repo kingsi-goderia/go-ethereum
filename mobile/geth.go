@@ -94,10 +94,10 @@ type Node struct {
 
 func getBootstrapNodes(config *NodeConfig) (v5nodes []*discv5.Node, nodes []*discover.Node) {
 	switch config.EthereumNetworkID {
-	case 2:
+	case 3:
 		v5nodes = []*discv5.Node{}
-		nodes = make([]*discover.Node, len(params.MainnetBootnodes))
-		for i, url := range params.DiscoveryV5Bootnodes {
+		nodes = make([]*discover.Node, len(params.TestnetBootnodes))
+		for i, url := range params.TestnetBootnodes {
 			nodes[i] = discover.MustParseNode(url)
 		}
 		break
@@ -129,7 +129,7 @@ func getBootstrapNodes(config *NodeConfig) (v5nodes []*discv5.Node, nodes []*dis
 
 func getGenesis(config *NodeConfig) (genesis *core.Genesis) {
 	switch config.EthereumNetworkID {
-	case 2:
+	case 3:
 		genesis = core.DefaultTestnetGenesisBlock()
 		break
 	case 4:
